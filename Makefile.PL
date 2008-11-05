@@ -7,7 +7,7 @@ name   		'Postscript-HTML-Map';
 requires 'HTML::Element';
 requires 'Math::Bezier';
 
-version '1.0';
+version_from 'lib/Postscript/HTML/Map.pm';
 
 auto_install;
 WriteAll;

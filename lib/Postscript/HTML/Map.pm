@@ -12,7 +12,9 @@ use HTML::Element;
 use Math::Bezier;
 
 __PACKAGE__->mk_accessors(qw/postscript map width height current_x current_y args_stack polygon
-                             comments html_handler/);
+                             comments html_handler scale_x scale_y/);
+
+our $VERSION = '1.0001';
 
 my %handlers = (
     BeginEPSF   => undef,
@@ -23,6 +25,7 @@ my %handlers = (
     lineto      => 'add_line',
     curveto     => 'add_curve',
     closepath   => 'perform_closepath', # Will need to do more later
+    scale       => 'adjust_scaling', # Will need to do more later
     );
 my $handler_regex = join '|', keys %handlers;
 
@@ -65,6 +68,7 @@ sub render {
     $self->args_stack([]);
     $self->polygon([]);
     $self->comments([]);
+    $self->scale(1,1);
 
     while (@postscript){
         if ($postscript[0] =~ /^\s*%/){
@@ -100,6 +104,12 @@ sub add_arc {
     if (($start_angle == 0   && $end_angle == 360) ||
         ($start_angle == 360 && $end_angle == 0)){
         # Complete circle, use the circle operator
+
+        $x *= $self->scale_x;
+        $y *= $self->scale_y;
+
+        # Radius handling goes crazy if scaling isn't equal, so we assume x
+        $radius *= $self->scale_x;
 
         my $element = HTML::Element->new('area',
             shape   => 'circle', 
@@ -141,6 +151,9 @@ sub perform_move {
 
     my ($x, $y) = split /\s+/, $args;
 
+    $x *= $self->scale_x;
+    $y *= $self->scale_y;
+
     $self->current_coords($x, $y);
 
     return;
@@ -173,6 +186,13 @@ sub add_curve {
         $control2_x, $control2_y,
         $end_x, $end_y) = split /\s+/, $args;
 
+    $control1_x *= $self->scale_x;
+    $control1_y *= $self->scale_y;
+    $control2_x *= $self->scale_x;
+    $control2_y *= $self->scale_y;
+    $end_x *= $self->scale_x;
+    $end_y *= $self->scale_y;
+
     my $bezier = Math::Bezier->new( 
         $self->current_coords,
         $control1_x, $control1_y,
@@ -199,9 +219,27 @@ sub add_line {
 
     my ($x, $y) = split /\s+/, $args;
 
+    $x *= $self->scale_x;
+    $y *= $self->scale_y;
+
     $self->add_to_polygon($x, $y);
     
     $self->current_coords($x, $y);
+
+    return;
+    }
+
+sub adjust_scaling {
+    my ($self, $cmd, $args) = @_;
+
+    die "No scaling provided" unless $args;
+
+    my ($x, $y) = split /\s+/, $args;
+
+    $self->scale($x, $y);
+
+    $self->height( $self->height * $self->scale_y );
+    $self->width( $self->width * $self->scale_x );
 
     return;
     }
@@ -249,6 +287,17 @@ sub comment {
         }
     
     return $self->comments->[-1];
+    }
+
+sub scale {
+    my ($self, $x, $y) = @_;
+
+    if ($x && $y){
+        $self->scale_x($x);
+        $self->scale_y($y);
+        }
+
+    return ($self->scale_x, $self->scale_y);
     }
 
 1;

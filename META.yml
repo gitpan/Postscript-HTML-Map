@@ -13,4 +13,4 @@ no_index:
 requires: 
   HTML::Element: 0
   Math::Bezier: 0
-version: 1.0
+version: 1.0001
